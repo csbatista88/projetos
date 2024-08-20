@@ -1,0 +1,54 @@
+## implementando stereo
+
+# Carregue o áudio estéreo
+audio = AudioSegment.from_wav("teste1.wav")
+pipe = pipeline(
+    "automatic-speech-recognition",
+    model=model,
+    tokenizer=processor.tokenizer,
+    feature_extractor=processor.feature_extractor,
+    torch_dtype=torch_dtype,
+    device=device,
+)
+
+# Separe os canais
+left_channel = audio.split_to_mono()[0]
+right_channel = audio.split_to_mono()[1]
+
+# Salve cada canal como um arquivo separado
+left_channel.export("left_channel.wav", format="wav")
+right_channel.export("right_channel.wav", format="wav")
+
+# Transcreva o canal esquerdo
+result_left = pipe("left_channel.wav")
+print("Person 1 (left channel):", result_left["text"])
+
+# Transcreva o canal direito
+result_right = pipe("right_channel.wav")
+print("Person 2 (right channel):", result_right["text"])
+
+
+## implementando mono
+# Carregando o pipeline pré-treinado para diarização
+TOKEN="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"
+diarization_pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization@2.1",use_auth_token="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")
+
+# Carregando o arquivo de áudio no diarization
+diarization = diarization_pipeline("teste1.wav")
+
+# Imprimindo os segmentos de fala com os respectivos identificadores de falantes
+for turn, _, speaker in diarization.itertracks(yield_label=True):
+    print(f"Speaker {speaker}: {turn.start:.1f}s to {turn.end:.1f}s")
+
+# combinando diarização com transcrição
+from pydub import AudioSegment
+# Segmentação de áudio baseada na diarização
+audio = AudioSegment.from_wav("teste1.wav")
+for turn, _, speaker in diarization.itertracks(yield_label=True):
+    segment = audio[turn.start * 1000:turn.end * 1000]
+    segment.export(f"segment_{speaker}.wav", format="wav")
+
+    # Transcreva cada segmento
+    result = pipe(f"segment_{speaker}.wav")
+    print(f"Speaker {speaker}: {result['text']}")
+
